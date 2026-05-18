@@ -9,18 +9,18 @@ const upload = multer();
 
 // 회원가입
 router.post('/signup/', upload.none(), async (req, res, next) => {
-  const { userId, userPw, userName, email } = req.body;
+  const { username, password, birth_year, gender } = req.body;
 
-  if (!userId || !userPw || !userName) {
+  if (!username || !password) {
     return next({ status: 400, message: '필수 항목이 누락되었습니다.' });
   }
 
   try {
-    const hashedPw = await bcrypt.hash(userPw, 10);
+    const hashedPw = await bcrypt.hash(password, 10);
 
     const { data, error } = await supabase
       .from('users')
-      .insert([{ user_id: userId, user_pw: hashedPw, user_name: userName, email }])
+      .insert([{ user_id: username, user_pw: hashedPw, user_name: username }])
       .select();
 
     if (error) {
@@ -28,11 +28,19 @@ router.post('/signup/', upload.none(), async (req, res, next) => {
       return next({ status: 400, message: error.message });
     }
 
+    const userNo = data[0].user_no;
+
+    await supabase
+      .from('profile')
+      .insert([{ user_no: userNo, birth_year: birth_year ? parseInt(birth_year) : null, gender }]);
+
+    req.session.userNo = userNo;
+    req.session.userId = username;
+
     res.status(201).json({
       isSuccess: true,
       message: '환영합니다, 탐정님!',
-      userNo: data[0].user_no,
-      createdAt: data[0].created_at
+      user: { username, userName: username }
     });
   } catch (err) {
     next(err);
