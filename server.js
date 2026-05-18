@@ -2,7 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const errorHandler = require('./middlewares/errorHandler'); // 🌟 에러 청소부 도입
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 const PORT = 8000;
@@ -20,6 +20,7 @@ app.use(session({
 // 라우터 연결
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/main', require('./routes/main'));
+app.use('/api/topscore', require('./routes/topscore'));
 
 // 🌟 중요: 에러 핸들러 미들웨어는 라우터들보다 항상 '가장 아래'에 위치해야 에러를 낚아챕니다.
 app.use(errorHandler);
