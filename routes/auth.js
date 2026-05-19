@@ -38,7 +38,7 @@ router.post('/signup/', upload.none(), async (req, res, next) => {
     req.session.userId = username;
 
     res.status(201).json({
-      isSuccess: true,
+      success: true,
       message: '환영합니다, 탐정님!',
       user: { username, userName: username }
     });
@@ -71,7 +71,7 @@ router.post('/login/', async (req, res, next) => {
     req.session.userId = user.user_id;
 
     res.json({
-      isSuccess: true,
+      success: true,
       message: '로그인 성공',
       user: {
         username: user.user_id,
@@ -88,14 +88,14 @@ router.post('/logout/', (req, res, next) => {
   req.session.destroy((err) => {
     if (err) return next(err);
     res.clearCookie('connect.sid');
-    res.json({ isSuccess: true, message: '로그아웃 되었습니다.' });
+    res.json({ success: true, message: '로그아웃 되었습니다.' });
   });
 });
 
 // 내 정보 조회 (세션 확인용)
 router.get('/me/', async (req, res, next) => {
   if (!req.session.userNo) {
-    return res.status(401).json({ isSuccess: false, message: '로그인이 필요합니다.' });
+    return res.status(401).json({ success: false, message: '로그인이 필요합니다.' });
   }
 
   try {
@@ -108,8 +108,8 @@ router.get('/me/', async (req, res, next) => {
     if (error || !user) return next(ErrorCodes.UNAUTHORIZED);
 
     res.json({
-      isSuccess: true,
-      user: {
+      success: true,
+      data: {
         id: user.user_no,
         username: user.user_id,
         userName: user.user_name,

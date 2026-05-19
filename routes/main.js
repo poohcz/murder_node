@@ -6,11 +6,9 @@ router.get('/', async (req, res, next) => {
   try {
     const { data: banners, error: bannerError } = await supabase
       .from('banners')
-      .select('banner_id, title, desc, thumbnail')
+      .select('banner_id, scenario_id, title, desc, thumbnail')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
-
-    console.log('banners:', banners, 'error:', bannerError);
 
     const { data: topRated, error: topRatedError } = await supabase
       .from('scenarios')
@@ -19,18 +17,22 @@ router.get('/', async (req, res, next) => {
       .order('rating', { ascending: false })
       .limit(3);
 
-    console.log('topRated:', topRated, 'error:', topRatedError);
-
     const { data: generalList, error: generalError } = await supabase
       .from('scenarios')
       .select('scenario_id, title, player_count, difficulty, thumbnail');
 
-    console.log('generalList:', generalList, 'error:', generalError);
+    if (bannerError || topRatedError || generalError) {
+       throw bannerError || topRatedError || generalError;
+    }
 
+    // 🌟 성공 규격 껍질(success, data)을 씌워서 하나로 묶어줍니다!
     res.json({
-      banners: banners?.map(b => ({ id: b.banner_id, title: b.title, desc: b.desc, thumbnail: b.thumbnail })) || [],
-      topRated: topRated?.map(t => ({ id: t.scenario_id, title: t.title, rating: String(t.rating), thumbnail: t.thumbnail })) || [],
-      generalList: generalList?.map(g => ({ id: g.scenario_id, title: g.title, players: g.player_count, difficulty: g.difficulty, thumbnail: g.thumbnail })) || []
+      success: true,
+      data: {
+        banners: banners?.map(b => ({ id: b.scenario_id, title: b.title, desc: b.desc, thumbnail: b.thumbnail })) || [],
+        topRated: topRated?.map(t => ({ id: t.scenario_id, title: t.title, rating: String(t.rating), thumbnail: t.thumbnail })) || [],
+        generalList: generalList?.map(g => ({ id: g.scenario_id, title: g.title, players: g.player_count, difficulty: g.difficulty, thumbnail: g.thumbnail })) || []
+      }
     });
   } catch (err) {
     next(err);

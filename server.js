@@ -21,6 +21,7 @@ app.use(session({
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/main', require('./routes/main'));
 app.use('/api/topscore', require('./routes/topscore'));
+app.use('/api/scenarios', require('./routes/scenarios'));
 
 // 🌟 중요: 에러 핸들러 미들웨어는 라우터들보다 항상 '가장 아래'에 위치해야 에러를 낚아챕니다.
 app.use(errorHandler);
