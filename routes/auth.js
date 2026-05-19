@@ -7,6 +7,15 @@ const ErrorCodes = require('../constants/errorCodes');
 
 const upload = multer();
 
+const formatUser = (user) => ({
+  userNo: user.user_no,
+  userId: user.user_id,
+  userName: user.user_name,
+  email: user.email ?? null,
+  level: user.current_level ?? 1,
+  points: user.reward_points ?? 0,
+});
+
 // 회원가입
 router.post('/signup/', upload.none(), async (req, res, next) => {
   const { username, password, birth_year, gender } = req.body;
@@ -40,7 +49,7 @@ router.post('/signup/', upload.none(), async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: '환영합니다, 탐정님!',
-      user: { username, userName: username }
+      user: formatUser(data[0]),
     });
   } catch (err) {
     next(err);
@@ -73,10 +82,7 @@ router.post('/login/', async (req, res, next) => {
     res.json({
       success: true,
       message: '로그인 성공',
-      user: {
-        username: user.user_id,
-        userName: user.user_name
-      }
+      user: formatUser(user),
     });
   } catch (err) {
     next(err);
@@ -92,7 +98,7 @@ router.post('/logout/', (req, res, next) => {
   });
 });
 
-// 내 정보 조회 (세션 확인용)
+// 내 정보 조회
 router.get('/me/', async (req, res, next) => {
   if (!req.session.userNo) {
     return res.status(401).json({ success: false, message: '로그인이 필요합니다.' });
@@ -109,14 +115,7 @@ router.get('/me/', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: {
-        id: user.user_no,
-        username: user.user_id,
-        userName: user.user_name,
-        email: user.email,
-        level: user.current_level,
-        points: user.reward_points,
-      }
+      data: formatUser(user),
     });
   } catch (err) {
     next(err);
