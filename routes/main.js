@@ -47,7 +47,7 @@ router.post('/check-user', async (req, res, next) => {
       .from('users')
       .select('user_no') // 👈 수정됨 (userNo -> user_no)
       .eq('user_name', nickname) // 👈 수정됨 (userName -> user_name)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       return res.json({ success: true, data: { exists: false } });
