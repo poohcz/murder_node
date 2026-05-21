@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../supabaseClient');
+const multer = require('multer');
+
+// 메모리 스토리지 사용 (파일을 버퍼로 받아서 바로 Supabase로 전송)
+const upload = multer({ storage: multer.memoryStorage() });
 
 const requireAuth = (req, res, next) => {
   if (!req.session.userNo) {
@@ -33,12 +37,37 @@ router.post('/step1', requireAuth, async (req, res, next) => {
   }
 });
 
-// Step2 - 방 저장
-router.post('/step2', requireAuth, async (req, res, next) => {
+// Step2 - 방 저장 및 이미지 업로드 (FormData 처리)
+router.post('/step2', requireAuth, upload.any(), async (req, res, next) => {
   try {
-    const { scenarioId, rooms } = req.body;
+    const scenarioId = req.body.scenarioId;
+    const rooms = JSON.parse(req.body.rooms); // 프론트에서 JSON.stringify로 보낸 데이터 파싱
 
-    // 기존 방 삭제 후 재저장
+    // 1. 이미지 업로드 처리
+    for (let i = 0; i < rooms.length; i++) {
+      const file = req.files.find(f => f.fieldname === `room_image_${i}`);
+      if (file) {
+        // 확장자 추출 및 고유 파일명 생성
+        const ext = file.originalname.split('.').pop();
+        const fileName = `${scenarioId}_room_${i}_${Date.now()}.${ext}`;
+
+        // Supabase Storage 업로드
+        const { error: uploadError } = await supabase.storage
+          .from('scenario-images')
+          .upload(fileName, file.buffer, { contentType: file.mimetype });
+
+        if (uploadError) throw uploadError;
+
+        // Public URL 가져오기
+        const { data: urlData } = supabase.storage
+          .from('scenario-images')
+          .getPublicUrl(fileName);
+
+        rooms[i].imageUrl = urlData.publicUrl;
+      }
+    }
+
+    // 2. 기존 방 삭제 후 재저장
     await supabase.from('rooms').delete().eq('scenario_id', scenarioId);
 
     const { error } = await supabase
@@ -48,6 +77,7 @@ router.post('/step2', requireAuth, async (req, res, next) => {
         name: r.name,
         description: r.desc,
         creation_method: r.method,
+        image: r.imageUrl || null, // 생성된 이미지 URL 저장
       })));
 
     if (error) throw error;
@@ -58,25 +88,79 @@ router.post('/step2', requireAuth, async (req, res, next) => {
   }
 });
 
-// Step3 - 캐릭터 저장
-router.post('/step3', requireAuth, async (req, res, next) => {
+// Step3 - 캐릭터 저장 (multer upload.any() 추가 필요)
+router.post('/step3', requireAuth, upload.any(), async (req, res, next) => {
   try {
-    const { scenarioId, characters } = req.body;
+    const scenarioId = req.body.scenarioId;
+    const characters = JSON.parse(req.body.characters);
+
+    // 1. 이미지 업로드 처리
+    for (let i = 0; i < characters.length; i++) {
+      const file = req.files.find(f => f.fieldname === `char_image_${i}`);
+      if (file) {
+        const ext = file.originalname.split('.').pop();
+        const fileName = `${scenarioId}_char_${i}_${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('scenario-images')
+          .upload(fileName, file.buffer, { contentType: file.mimetype });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('scenario-images').getPublicUrl(fileName);
+
+        characters[i].imageUrl = urlData.publicUrl;
+      }
+    }
 
     await supabase.from('characters').delete().eq('scenario_id', scenarioId);
 
     const { error } = await supabase
       .from('characters')
-      .insert(characters.map((c) => ({
+      .insert(characters.map((c) => {
+        const parsedAge = c.age && c.age.toString().trim() !== '' ? parseInt(c.age, 10) : null;
+        const parsedGender = c.gender && c.gender.trim() !== '' ? c.gender : null;
+
+        return {
+          scenario_id: scenarioId,
+          name: c.name,
+          age: parsedAge,
+          gender: parsedGender,
+          public_desc: c.publicDesc,
+          private_role: c.privateRole,
+          timeline: JSON.stringify(c.timeline),
+          victory_cond: c.victoryCondition,
+          is_culprit: c.isCulprit,
+          image: c.imageUrl || null, // 🚀 DB image 컬럼에 저장
+        };
+      }));
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Step4 - 시나리오 북(페이지) 저장
+router.post('/step4', requireAuth, async (req, res, next) => {
+  try {
+    const { scenarioId, pages } = req.body;
+
+    await supabase.from('scenario_books').delete().eq('scenario_id', scenarioId);
+
+    const { error } = await supabase
+      .from('scenario_books')
+      .insert(pages.map((p) => ({
         scenario_id: scenarioId,
-        name: c.name,
-        age: c.age,           // 👈 추가됨
-        gender: c.gender,     // 👈 추가됨
-        public_desc: c.publicDesc,
-        private_role: c.privateRole,
-        timeline: JSON.stringify(c.timeline),
-        victory_cond: c.victoryCondition,
-        is_culprit: c.isCulprit,
+        page_number: p.pageNumber,
+        left_type: p.leftType,
+        left_image: p.leftImage,
+        left_content: p.leftContent,
+        right_title: p.rightTitle,
+        right_content: p.rightContent,
+        is_last: p.isLast,
       })));
 
     if (error) throw error;
@@ -87,12 +171,12 @@ router.post('/step3', requireAuth, async (req, res, next) => {
   }
 });
 
-// Step4 - 줄거리 + 진상 저장 + 출간
-router.post('/step4', requireAuth, async (req, res, next) => {
+// Step5 - 줄거리 + 진상 저장 + 출간
+router.post('/step5', requireAuth, async (req, res, next) => {
   try {
     const { scenarioId, synopsis, truths } = req.body;
 
-    // 시나리오 업데이트
+    // 시나리오 상태 PUBLISHED로 업데이트 및 줄거리 저장
     await supabase
       .from('scenarios')
       .update({ summary: synopsis, status: 'PUBLISHED' })
@@ -124,10 +208,11 @@ router.get('/draft', requireAuth, async (req, res, next) => {
       .from('scenarios')
       .select(`
         scenario_id, title, player_count, status,
-        rooms ( room_id, name, description, creation_method ),
+        rooms ( room_id, name, description, creation_method, image ),
         characters ( character_id, name, age, gender, public_desc, private_role, timeline, victory_cond, is_culprit ), 
+        scenario_books ( book_id, page_number, left_type, left_image, left_content, right_title, right_content, is_last ),
         truths ( truth_id, title, content )
-      `) // 👆 age, gender 추가됨
+      `)
       .eq('author_no', req.session.userNo)
       .eq('status', 'DRAFT')
       .order('uploaded_at', { ascending: false })
@@ -144,7 +229,7 @@ router.get('/draft', requireAuth, async (req, res, next) => {
   }
 });
 
-// DRAFT 삭제 (새로 작성 선택 시)
+// DRAFT 삭제
 router.delete('/draft/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
