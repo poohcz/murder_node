@@ -79,6 +79,18 @@ router.post('/login/', async (req, res, next) => {
     req.session.userNo = user.user_no;
     req.session.userId = user.user_id;
 
+    // 🚀 로그인 로그 기록 추가 (IP 및 브라우저 정보 추출)
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    await supabase
+      .from('login_logs')
+      .insert([{
+        user_no: user.user_no,
+        ip_address: ipAddress,
+        user_agent: userAgent
+      }]);
+
     res.json({
       success: true,
       message: '로그인 성공',

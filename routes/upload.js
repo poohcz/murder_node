@@ -41,14 +41,14 @@ router.post('/step2', requireAuth, async (req, res, next) => {
     // 기존 방 삭제 후 재저장
     await supabase.from('rooms').delete().eq('scenario_id', scenarioId);
 
-const { error } = await supabase
-  .from('rooms')
-  .insert(rooms.map((r) => ({
-    scenario_id: scenarioId,
-    name: r.name,
-    description: r.desc,
-    creation_method: r.method,
-  })));
+    const { error } = await supabase
+      .from('rooms')
+      .insert(rooms.map((r) => ({
+        scenario_id: scenarioId,
+        name: r.name,
+        description: r.desc,
+        creation_method: r.method,
+      })));
 
     if (error) throw error;
 
@@ -65,17 +65,19 @@ router.post('/step3', requireAuth, async (req, res, next) => {
 
     await supabase.from('characters').delete().eq('scenario_id', scenarioId);
 
-const { error } = await supabase
-  .from('characters')
-  .insert(characters.map((c) => ({
-    scenario_id: scenarioId,
-    name: c.name,
-    public_desc: c.publicDesc,
-    private_role: c.privateRole,
-    timeline: JSON.stringify(c.timeline),
-    victory_cond: c.victoryCondition,
-    is_culprit: c.isCulprit,
-  })));
+    const { error } = await supabase
+      .from('characters')
+      .insert(characters.map((c) => ({
+        scenario_id: scenarioId,
+        name: c.name,
+        age: c.age,           // 👈 추가됨
+        gender: c.gender,     // 👈 추가됨
+        public_desc: c.publicDesc,
+        private_role: c.privateRole,
+        timeline: JSON.stringify(c.timeline),
+        victory_cond: c.victoryCondition,
+        is_culprit: c.isCulprit,
+      })));
 
     if (error) throw error;
 
@@ -99,13 +101,13 @@ router.post('/step4', requireAuth, async (req, res, next) => {
     // 진상 저장
     await supabase.from('truths').delete().eq('scenario_id', scenarioId);
 
-const { error } = await supabase
-  .from('truths')
-  .insert(truths.map((t) => ({
-    scenario_id: scenarioId,
-    title: t.title,
-    content: t.content,
-  })));
+    const { error } = await supabase
+      .from('truths')
+      .insert(truths.map((t) => ({
+        scenario_id: scenarioId,
+        title: t.title,
+        content: t.content,
+      })));
 
     if (error) throw error;
 
@@ -123,9 +125,9 @@ router.get('/draft', requireAuth, async (req, res, next) => {
       .select(`
         scenario_id, title, player_count, status,
         rooms ( room_id, name, description, creation_method ),
-        characters ( character_id, name, public_desc, private_role, timeline, victory_cond, is_culprit ),
+        characters ( character_id, name, age, gender, public_desc, private_role, timeline, victory_cond, is_culprit ), 
         truths ( truth_id, title, content )
-      `)
+      `) // 👆 age, gender 추가됨
       .eq('author_no', req.session.userNo)
       .eq('status', 'DRAFT')
       .order('uploaded_at', { ascending: false })
