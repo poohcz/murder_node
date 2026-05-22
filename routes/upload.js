@@ -209,7 +209,7 @@ router.get('/draft', requireAuth, async (req, res, next) => {
       .select(`
         scenario_id, title, player_count, status,
         rooms ( room_id, name, description, creation_method, image ),
-        characters ( character_id, name, age, gender, public_desc, private_role, timeline, victory_cond, is_culprit ), 
+        characters ( character_id, name, age, gender, public_desc, private_role, timeline, victory_cond, is_culprit, image ), 
         scenario_books ( book_id, page_number, left_type, left_image, left_content, right_title, right_content, is_last ),
         truths ( truth_id, title, content )
       `)
