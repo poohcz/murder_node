@@ -3,7 +3,6 @@ const router = express.Router();
 const supabase = require('../supabaseClient');
 const multer = require('multer');
 
-// 메모리 스토리지 사용 (파일을 버퍼로 받아서 바로 Supabase로 전송)
 const upload = multer({ storage: multer.memoryStorage() });
 
 const requireAuth = (req, res, next) => {
@@ -37,28 +36,24 @@ router.post('/step1', requireAuth, async (req, res, next) => {
   }
 });
 
-// Step2 - 방 저장 및 이미지 업로드 (FormData 처리)
+// Step2 - 방 저장 및 이미지 업로드
 router.post('/step2', requireAuth, upload.any(), async (req, res, next) => {
   try {
     const scenarioId = req.body.scenarioId;
-    const rooms = JSON.parse(req.body.rooms); // 프론트에서 JSON.stringify로 보낸 데이터 파싱
+    const rooms = JSON.parse(req.body.rooms);
 
-    // 1. 이미지 업로드 처리
     for (let i = 0; i < rooms.length; i++) {
-      const file = req.files.find(f => f.fieldname === `room_image_${i}`);
+      const file = (req.files || []).find(f => f.fieldname === `room_image_${i}`);
       if (file) {
-        // 확장자 추출 및 고유 파일명 생성
         const ext = file.originalname.split('.').pop();
         const fileName = `${scenarioId}_room_${i}_${Date.now()}.${ext}`;
 
-        // Supabase Storage 업로드
         const { error: uploadError } = await supabase.storage
           .from('scenario-images')
           .upload(fileName, file.buffer, { contentType: file.mimetype });
 
         if (uploadError) throw uploadError;
 
-        // Public URL 가져오기
         const { data: urlData } = supabase.storage
           .from('scenario-images')
           .getPublicUrl(fileName);
@@ -67,7 +62,6 @@ router.post('/step2', requireAuth, upload.any(), async (req, res, next) => {
       }
     }
 
-    // 2. 기존 방 삭제 후 재저장
     await supabase.from('rooms').delete().eq('scenario_id', scenarioId);
 
     const { error } = await supabase
@@ -77,7 +71,7 @@ router.post('/step2', requireAuth, upload.any(), async (req, res, next) => {
         name: r.name,
         description: r.desc,
         creation_method: r.method,
-        image: r.imageUrl || null, // 생성된 이미지 URL 저장
+        image: r.imageUrl || null,
       })));
 
     if (error) throw error;
@@ -88,15 +82,14 @@ router.post('/step2', requireAuth, upload.any(), async (req, res, next) => {
   }
 });
 
-// Step3 - 캐릭터 저장 (multer upload.any() 추가 필요)
+// Step3 - 캐릭터 저장
 router.post('/step3', requireAuth, upload.any(), async (req, res, next) => {
   try {
     const scenarioId = req.body.scenarioId;
     const characters = JSON.parse(req.body.characters);
 
-    // 1. 이미지 업로드 처리
     for (let i = 0; i < characters.length; i++) {
-      const file = req.files.find(f => f.fieldname === `char_image_${i}`);
+      const file = (req.files || []).find(f => f.fieldname === `char_image_${i}`);
       if (file) {
         const ext = file.originalname.split('.').pop();
         const fileName = `${scenarioId}_char_${i}_${Date.now()}.${ext}`;
@@ -132,7 +125,7 @@ router.post('/step3', requireAuth, upload.any(), async (req, res, next) => {
           timeline: JSON.stringify(c.timeline),
           victory_cond: c.victoryCondition,
           is_culprit: c.isCulprit,
-          image: c.imageUrl || null, // 🚀 DB image 컬럼에 저장
+          image: c.imageUrl || null, 
         };
       }));
 
@@ -143,11 +136,30 @@ router.post('/step3', requireAuth, upload.any(), async (req, res, next) => {
   }
 });
 
-// Step4 - 시나리오 북(페이지) 저장
-router.post('/step4', requireAuth, async (req, res, next) => {
+// Step4 - 시나리오 북(페이지) 저장 및 이미지 업로드
+router.post('/step4', requireAuth, upload.any(), async (req, res, next) => {
   try {
-    const { scenarioId, pages } = req.body;
+    const scenarioId = req.body.scenarioId;
+    const pages = typeof req.body.pages === 'string' ? JSON.parse(req.body.pages) : req.body.pages;
 
+    // 1. 인물 카드 이미지 업로드 (page_image_x)
+    for (let i = 0; i < pages.length; i++) {
+      const file = (req.files || []).find(f => f.fieldname === `page_image_${i}`);
+      if (file) {
+        const ext = file.originalname.split('.').pop();
+        const fileName = `${scenarioId}_page_${i}_${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('scenario-images')
+          .upload(fileName, file.buffer, { contentType: file.mimetype });
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from('scenario-images').getPublicUrl(fileName);
+        pages[i].leftImage = urlData.publicUrl;
+      }
+    }
+
+    // 2. 기존 페이지 삭제 후 재저장
     await supabase.from('scenario_books').delete().eq('scenario_id', scenarioId);
 
     const { error } = await supabase
@@ -156,7 +168,7 @@ router.post('/step4', requireAuth, async (req, res, next) => {
         scenario_id: scenarioId,
         page_number: p.pageNumber,
         left_type: p.leftType,
-        left_image: p.leftImage,
+        left_image: p.leftImage, 
         left_content: p.leftContent,
         right_title: p.rightTitle,
         right_content: p.rightContent,
@@ -176,13 +188,11 @@ router.post('/step5', requireAuth, async (req, res, next) => {
   try {
     const { scenarioId, synopsis, truths } = req.body;
 
-    // 시나리오 상태 PUBLISHED로 업데이트 및 줄거리 저장
     await supabase
       .from('scenarios')
       .update({ summary: synopsis, status: 'PUBLISHED' })
       .eq('scenario_id', scenarioId);
 
-    // 진상 저장
     await supabase.from('truths').delete().eq('scenario_id', scenarioId);
 
     const { error } = await supabase
@@ -201,7 +211,7 @@ router.post('/step5', requireAuth, async (req, res, next) => {
   }
 });
 
-// 내 DRAFT 조회
+// 내 DRAFT 조회 (🚀 에러 유발 원인이던 background_image 완벽 걷어냄)
 router.get('/draft', requireAuth, async (req, res, next) => {
   try {
     const { data, error } = await supabase
