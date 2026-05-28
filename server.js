@@ -15,7 +15,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   rolling: true,
-  cookie: { secure: false, maxAge: 1000 * 60 * 60 }
+  cookie: { secure: false, maxAge: 1000 * 60 * 60 * 6 }
 }));
 
 // 라우터 연결
