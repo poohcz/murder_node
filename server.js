@@ -14,6 +14,7 @@ app.use(session({
   secret: 'super-secret-murder-key',
   resave: false,
   saveUninitialized: false,
+  rolling: true,
   cookie: { secure: false, maxAge: 1000 * 60 * 60 }
 }));
 
