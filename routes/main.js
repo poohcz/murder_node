@@ -117,6 +117,44 @@ router.get('/scenario-info', async (req, res, next) => {
   }
 });
 
+router.get('/upcoming-slots', async (req, res, next) => {
+  try {
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select(`
+        session_id,
+        start_time,
+        status,
+        max_players,
+        scenario_id,
+        scenarios ( title, thumbnail, difficulty )
+      `)
+      .gte('start_time', now)
+      .eq('status', 'WAITING')
+      .order('start_time', { ascending: true })
+      .limit(4);
+
+    if (error) throw error;
+
+    const slots = data.map(s => ({
+      sessionId: s.session_id,
+      startTime: s.start_time,
+      displayTime: new Date(s.start_time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      maxPlayers: s.max_players,
+      scenarioId: s.scenario_id,
+      title: s.scenarios?.title,
+      thumbnail: s.scenarios?.thumbnail,
+      difficulty: s.scenarios?.difficulty,
+    }));
+
+    res.json({ success: true, data: { slots } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // 방 개설 (중복 체크 및 참여자 등록)
 router.post('/create-room', async (req, res, next) => {
   try {
