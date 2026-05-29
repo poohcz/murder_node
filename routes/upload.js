@@ -133,7 +133,9 @@ router.post('/step4', requireAuth, upload.any(), async (req, res, next) => {
   try {
     const scenarioId = req.body.scenarioId;
     const pages = typeof req.body.pages === 'string' ? JSON.parse(req.body.pages) : req.body.pages;
-
+    console.log('받은 markers raw:', req.body.markers); // ← 추가
+    const markers = req.body.markers ? JSON.parse(req.body.markers) : [];
+    console.log('파싱된 markers:', markers); // ← 추가
     // 1. 공통 배경 이미지 처리
     const bgFile = (req.files || []).find(f => f.fieldname === 'bg_image');
     if (bgFile) {
@@ -162,7 +164,16 @@ router.post('/step4', requireAuth, upload.any(), async (req, res, next) => {
       }
     }
 
-    // 3. clues 테이블에 인물카드로 저장
+    // 3. 마커 좌표 저장
+for (const m of markers) {
+  const { data, error } = await supabase.from('rooms')
+    .update({ x: m.x, y: m.y })
+    .eq('room_id', m.roomId)
+    .eq('scenario_id', scenarioId);
+  console.log('update 결과:', data, error); // ← 추가
+}
+
+    // 4. clues 테이블에 인물카드로 저장
     await supabase.from('clues').delete().eq('scenario_id', scenarioId).eq('type', '인물카드');
     const { error } = await supabase.from('clues').insert(
       pages.map((p) => ({
@@ -211,7 +222,7 @@ router.get('/draft', requireAuth, async (req, res, next) => {
       .from('scenarios')
       .select(`
         scenario_id, title, player_count, status, background_image,
-        rooms ( room_id, name, description, creation_method, image ),
+        rooms ( room_id, name, description, creation_method, image, x, y ),
         characters ( character_id, name, age, gender, public_desc, private_role, timeline, victory_cond, is_culprit, image ),
         clues ( clue_id, name, type, short_desc, long_desc, image, is_public, room_id ),
         truths ( truth_id, title, content )
